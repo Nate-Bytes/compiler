@@ -228,7 +228,15 @@ public class Parser {
     }
 
     private Node parseExpressionStatement() {
-        return parseExpression();
+        Node expr = parseExpression();
+        if (expr == null) {
+            Token t = peek();
+            if (t != null) {
+                error("Unexpected token '" + t.value + "' in expression", t);
+                advance();
+            }
+        }
+        return expr;
     }
 
     // ── Expression parsing (recursive descent) ───────────────────────────────
