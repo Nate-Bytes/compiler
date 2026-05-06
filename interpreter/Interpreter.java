@@ -42,7 +42,6 @@ public class Interpreter {
     }
 
     private void execute() {
-        System.err.println("DEBUG: Starting execution");
         // First pass — index all labels and function definitions
         for (int i = 0; i < instructions.size(); i++) {
             IRInstruction ins = instructions.get(i);
@@ -56,8 +55,6 @@ public class Interpreter {
                 funcParams.put(ins.dest, params);
             }
         }
-        System.err.println("DEBUG: Found " + funcDefs.size() + " function definitions");
-        System.err.println("DEBUG: Found " + instructions.size() + " total instructions");
         callStack.push(new Frame("<module>", -1));
         int steps = 0;
 
@@ -68,7 +65,6 @@ public class Interpreter {
             }
             IRInstruction ins = instructions.get(ip);
             ip++;
-            System.err.println("DEBUG: Executing " + ins.op + " at ip=" + (ip-1));
 
             switch (ins.op) {
                 case LOAD_CONST:  setVar(ins.dest, parseConst(ins.args[0])); break;
@@ -80,10 +76,8 @@ public class Interpreter {
                 case FUNC_DEF:    // skip over function body during normal execution
                     String endLbl = ins.args[0];
                     Integer skipTo = labels.get(endLbl);
-                    System.err.println("DEBUG: FUNC_DEF " + ins.dest + " endLabel=" + endLbl + " skipTo=" + skipTo);
                     if (skipTo != null) {
                         ip = skipTo;  // Jump to FUNC_END, the loop will increment ip past it
-                        System.err.println("DEBUG:   Jumping to ip=" + ip);
                     }
                     break;
                 case FUNC_END:    break;
@@ -103,10 +97,8 @@ public class Interpreter {
                     break;
 
                 case PRINT:
-                    System.err.println("DEBUG: PRINT instruction with " + ins.args.length + " args");
                     StringBuilder sb = new StringBuilder();
                     for (int i = 0; i < ins.args.length; i++) {
-                        System.err.println("DEBUG:   arg[" + i + "] = " + ins.args[i] + " -> " + getVar(ins.args[i]));
                         if (i > 0) sb.append(" ");
                         sb.append(pyStr(getVar(ins.args[i])));
                     }
@@ -118,23 +110,22 @@ public class Interpreter {
                     String funcName = ins.args[0];
                     if (funcDefs.containsKey(funcName)) {
                         pendingCallDest = ins.dest;
-                        System.err.println("DEBUG: Calling user-defined function " + funcName + ", dest=" + ins.dest);
                     }
                     Object callResult = handleCall(funcName,
                         Arrays.copyOfRange(ins.args, 1, ins.args.length), ins.line);
-                    setVar(ins.dest, callResult);
-                    System.err.println("DEBUG: CALL result for " + funcName + " = " + callResult);
+                    // Only set variable for built-in functions; user-defined functions are handled by RETURN
+                    if (!funcDefs.containsKey(funcName)) {
+                        setVar(ins.dest, callResult);
+                    }
                     break;
 
                 case RETURN:
                     Object retVal = ins.args.length > 0 ? getVar(ins.args[0]) : null;
-                    System.err.println("DEBUG: RETURN retVal=" + retVal + ", pendingCallDest=" + pendingCallDest);
                     if (callStack.size() > 1) {
                         Frame returning = callStack.pop();
                         ip = returning.returnTo;
                         // For user-defined functions, store return value in the destination variable
                         if (pendingCallDest != null) {
-                            System.err.println("DEBUG: Setting " + pendingCallDest + " to " + retVal);
                             setVar(pendingCallDest, retVal);
                             pendingCallDest = null;
                         }

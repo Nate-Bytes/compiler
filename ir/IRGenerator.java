@@ -1,7 +1,7 @@
 package ir;
 
 import core.*;
-import parser.nodes.*;
+import parser.nodes.Node;
 import java.util.*;
 
 // Walks the AST and emits a flat list of IRInstructions.
@@ -19,7 +19,7 @@ public class IRGenerator {
         CompilerResult out = new CompilerResult(null);
         out.output = semResult.output;
         IRGenerator gen = new IRGenerator(out);
-        gen.visitProgram((ProgramNode) semResult.data);
+        gen.visitProgram((Node) semResult.data);
         out.data = gen.instructions;
         return out;
     }
@@ -31,86 +31,86 @@ public class IRGenerator {
         instructions.add(new IRInstruction(op, dest, args, 0));
     }
 
-    // ── Visitors ──────────────────────────────────────────────────────────────
-
-    private void visitProgram(ProgramNode p) {
-        for (Node s : p.statements) visitStmt(s);
+    private void visitProgram(Node p) {
+        if (p == null || p.children == null) return;
+        for (Node s : p.children) visitStmt(s);
     }
 
     private void visitStmt(Node n) {
         if (n == null) return;
-        if (n instanceof AssignNode)   visitAssign((AssignNode) n);
-        else if (n instanceof PrintNode)    visitPrint((PrintNode) n);
-        else if (n instanceof IfNode)       visitIf((IfNode) n);
-        else if (n instanceof WhileNode)    visitWhile((WhileNode) n);
-        else if (n instanceof ForNode)      visitFor((ForNode) n);
-        else if (n instanceof FuncDefNode)  visitFuncDef((FuncDefNode) n);
-        else if (n instanceof ReturnNode)   visitReturn((ReturnNode) n);
-        else if (n instanceof CallNode)     { String t = visitExpr(n); }
-        else if (n instanceof ImportNode)   visitImport((ImportNode) n);
-        // pass/break/continue are no-ops at IR level
-    }
-
-    private void visitAssign(AssignNode n) {
-        String val = visitExpr(n.value);
-        if (n.op.equals("=")) {
-            emit(IRInstruction.Op.ASSIGN, n.target, val);
-        } else {
-            // Augmented: x += y  →  t0 = x OP y; x = t0
-            String baseOp = n.op.substring(0, n.op.length() - 1); // strip '='
-            String temp = newTemp();
-            emit(IRInstruction.Op.BINOP, temp, n.target, baseOp, val);
-            emit(IRInstruction.Op.ASSIGN, n.target, temp);
+        switch (n.kind) {
+            case ASSIGN:   visitAssign(n); break;
+            case PRINT:    visitPrint(n);  break;
+            case IF:       visitIf(n);     break;
+            case WHILE:    visitWhile(n);  break;
+            case FOR:      visitFor(n);    break;
+            case FUNC_DEF: visitFuncDef(n);break;
+            case RETURN:   visitReturn(n); break;
+            case IMPORT:   visitImport(n); break;
+            case BLOCK:    for (Node child : n.children) visitStmt(child); break;
+            default:       if (n.kind == Node.Kind.CALL) visitExpr(n); break;
         }
     }
 
-    private void visitPrint(PrintNode n) {
+    private void visitAssign(Node n) {
+        String val = visitExpr(getChild(n, 0));
+        if ("=".equals(n.op)) {
+            emit(IRInstruction.Op.ASSIGN, n.name, val);
+        } else {
+            String baseOp = n.op.substring(0, n.op.length() - 1);
+            String temp = newTemp();
+            emit(IRInstruction.Op.BINOP, temp, n.name, baseOp, val);
+            emit(IRInstruction.Op.ASSIGN, n.name, temp);
+        }
+    }
+
+    private void visitPrint(Node n) {
         List<String> argTemps = new ArrayList<>();
-        for (Node arg : n.args) argTemps.add(visitExpr(arg));
+        for (Node arg : n.children) argTemps.add(visitExpr(arg));
         emit(IRInstruction.Op.PRINT, null, argTemps.toArray(new String[0]));
     }
 
-    private void visitIf(IfNode n) {
-        String cond    = visitExpr(n.condition);
+    private void visitIf(Node n) {
+        String cond = visitExpr(getChild(n, 0));
         String elseLabel = newLabel();
         String endLabel  = newLabel();
 
         emit(IRInstruction.Op.JUMP_IF_FALSE, null, cond, elseLabel);
-        for (Node s : n.body) visitStmt(s);
+        Node body = getChild(n, 1);
+        if (body != null) for (Node s : body.children) visitStmt(s);
         emit(IRInstruction.Op.JUMP, null, endLabel);
         emit(IRInstruction.Op.LABEL, elseLabel);
-        if (n.elseBody != null) for (Node s : n.elseBody) visitStmt(s);
+        Node elseBody = getChild(n, 2);
+        if (elseBody != null) for (Node s : elseBody.children) visitStmt(s);
         emit(IRInstruction.Op.LABEL, endLabel);
     }
 
-    private void visitWhile(WhileNode n) {
+    private void visitWhile(Node n) {
         String startLabel = newLabel();
         String endLabel   = newLabel();
         emit(IRInstruction.Op.LABEL, startLabel);
-        String cond = visitExpr(n.condition);
+        String cond = visitExpr(getChild(n, 0));
         emit(IRInstruction.Op.JUMP_IF_FALSE, null, cond, endLabel);
-        for (Node s : n.body) visitStmt(s);
+        Node body = getChild(n, 1);
+        if (body != null) for (Node s : body.children) visitStmt(s);
         emit(IRInstruction.Op.JUMP, null, startLabel);
         emit(IRInstruction.Op.LABEL, endLabel);
     }
 
-    private void visitFor(ForNode n) {
-        // for x in range(n) — we emit a runtime-level FOR loop via special IR
-        String iterTemp  = visitExpr(n.iterable);
+    private void visitFor(Node n) {
+        String iterTemp  = visitExpr(getChild(n, 0));
         String idxTemp   = newTemp();
         String startLabel = newLabel();
         String endLabel   = newLabel();
 
         emit(IRInstruction.Op.ASSIGN, idxTemp, "0");
         emit(IRInstruction.Op.LABEL, startLabel);
-        // Check: idxTemp < len(iter)
         String cmpTemp = newTemp();
         emit(IRInstruction.Op.BINOP, cmpTemp, idxTemp, "<", iterTemp + ".len");
         emit(IRInstruction.Op.JUMP_IF_FALSE, null, cmpTemp, endLabel);
-        // Assign loop var
-        emit(IRInstruction.Op.BINOP, n.var, iterTemp, "[]", idxTemp);
-        for (Node s : n.body) visitStmt(s);
-        // Increment index
+        emit(IRInstruction.Op.BINOP, n.name, iterTemp, "[]", idxTemp);
+        Node body = getChild(n, 1);
+        if (body != null) for (Node s : body.children) visitStmt(s);
         String nextIdx = newTemp();
         emit(IRInstruction.Op.BINOP, nextIdx, idxTemp, "+", "1");
         emit(IRInstruction.Op.ASSIGN, idxTemp, nextIdx);
@@ -118,86 +118,94 @@ public class IRGenerator {
         emit(IRInstruction.Op.LABEL, endLabel);
     }
 
-    private void visitFuncDef(FuncDefNode n) {
+    private void visitFuncDef(Node n) {
         String endLabel = newLabel();
-        emit(IRInstruction.Op.FUNC_DEF, n.name,
-             buildParamArgs(n.name, n.params, endLabel));
-        for (Node s : n.body) visitStmt(s);
+        emit(IRInstruction.Op.FUNC_DEF, n.name, buildParamArgs(n.name, n.params, endLabel));
+        Node body = getChild(n, 0);
+        if (body != null) for (Node s : body.children) visitStmt(s);
+        emit(IRInstruction.Op.RETURN, null, "None");
         emit(IRInstruction.Op.FUNC_END, endLabel);
     }
 
     private String[] buildParamArgs(String name, List<String> params, String endLabel) {
-        // args = [endLabel, param0, param1, ...]
         String[] arr = new String[params.size() + 1];
         arr[0] = endLabel;
         for (int i = 0; i < params.size(); i++) arr[i+1] = params.get(i);
         return arr;
     }
 
-    private void visitReturn(ReturnNode n) {
-        String val = n.value != null ? visitExpr(n.value) : "None";
+    private void visitReturn(Node n) {
+        String val = n.children.isEmpty() ? "None" : visitExpr(getChild(n, 0));
         emit(IRInstruction.Op.RETURN, null, val);
     }
 
-    private void visitImport(ImportNode n) {
-        emit(IRInstruction.Op.IMPORT, n.alias, n.module);
+    private void visitImport(Node n) {
+        emit(IRInstruction.Op.IMPORT, n.alias, n.name);
     }
 
-    // Returns the temp variable name holding the result of this expression.
     private String visitExpr(Node n) {
         if (n == null) return "None";
+        switch (n.kind) {
+            case NUMBER: {
+                String temp = newTemp();
+                String val = n.value instanceof Long ? String.valueOf((Long) n.value)
+                    : String.valueOf((Double) n.value);
+                emit(IRInstruction.Op.LOAD_CONST, temp, val);
+                return temp;
+            }
+            case STRING: {
+                String temp = newTemp();
+                emit(IRInstruction.Op.LOAD_CONST, temp, "\"" + pyStr(n.value) + "\"");
+                return temp;
+            }
+            case BOOL: {
+                String temp = newTemp();
+                emit(IRInstruction.Op.LOAD_CONST, temp, (Boolean)n.value ? "True" : "False");
+                return temp;
+            }
+            case NONE: {
+                String temp = newTemp();
+                emit(IRInstruction.Op.LOAD_CONST, temp, "None");
+                return temp;
+            }
+            case NAME:
+                return n.name;
+            case BINOP: {
+                Node left = getChild(n, 0);
+                Node right = getChild(n, 1);
+                String l = visitExpr(left);
+                String r = visitExpr(right);
+                String temp = newTemp();
+                emit(IRInstruction.Op.BINOP, temp, l, n.op, r);
+                return temp;
+            }
+            case UNARYOP: {
+                Node operand = getChild(n, 0);
+                String temp = newTemp();
+                emit(IRInstruction.Op.UNARYOP, temp, n.op, visitExpr(operand));
+                return temp;
+            }
+            case CALL: {
+                List<String> argTemps = new ArrayList<>();
+                for (Node a : n.children) argTemps.add(visitExpr(a));
+                String temp = newTemp();
+                String[] callArgs = new String[argTemps.size() + 1];
+                callArgs[0] = n.name;
+                for (int i = 0; i < argTemps.size(); i++) callArgs[i+1] = argTemps.get(i);
+                emit(IRInstruction.Op.CALL, temp, callArgs);
+                return temp;
+            }
+            default:
+                return "None";
+        }
+    }
 
-        if (n instanceof NumberNode) {
-            NumberNode num = (NumberNode) n;
-            String temp = newTemp();
-            String val = num.isInt ? String.valueOf((long) num.value) : String.valueOf(num.value);
-            emit(IRInstruction.Op.LOAD_CONST, temp, val);
-            return temp;
-        }
-        if (n instanceof StringNode) {
-            String temp = newTemp();
-            emit(IRInstruction.Op.LOAD_CONST, temp, "\"" + ((StringNode)n).value + "\"");
-            return temp;
-        }
-        if (n instanceof BoolNode) {
-            String temp = newTemp();
-            emit(IRInstruction.Op.LOAD_CONST, temp, ((BoolNode)n).value ? "True" : "False");
-            return temp;
-        }
-        if (n instanceof NoneNode) {
-            String temp = newTemp();
-            emit(IRInstruction.Op.LOAD_CONST, temp, "None");
-            return temp;
-        }
-        if (n instanceof NameNode) {
-            return ((NameNode)n).name;
-        }
-        if (n instanceof BinOpNode) {
-            BinOpNode b = (BinOpNode) n;
-            String l = visitExpr(b.left);
-            String r = visitExpr(b.right);
-            String temp = newTemp();
-            emit(IRInstruction.Op.BINOP, temp, l, b.op, r);
-            return temp;
-        }
-        if (n instanceof UnaryOpNode) {
-            UnaryOpNode u = (UnaryOpNode) n;
-            String operand = visitExpr(u.operand);
-            String temp = newTemp();
-            emit(IRInstruction.Op.UNARYOP, temp, u.op, operand);
-            return temp;
-        }
-        if (n instanceof CallNode) {
-            CallNode c = (CallNode) n;
-            List<String> argTemps = new ArrayList<>();
-            for (Node a : c.args) argTemps.add(visitExpr(a));
-            String temp = newTemp();
-            String[] callArgs = new String[argTemps.size() + 1];
-            callArgs[0] = c.name;
-            for (int i = 0; i < argTemps.size(); i++) callArgs[i+1] = argTemps.get(i);
-            emit(IRInstruction.Op.CALL, temp, callArgs);
-            return temp;
-        }
-        return "None";
+    private Node getChild(Node n, int index) {
+        return (n == null || n.children == null || index >= n.children.size()) ? null : n.children.get(index);
+    }
+
+    private String pyStr(Object v) {
+        if (v == null) return "None";
+        return v.toString();
     }
 }

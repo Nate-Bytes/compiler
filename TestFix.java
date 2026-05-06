@@ -1,7 +1,6 @@
 import core.Pipeline;
 import core.CompilerResult;
 import ir.IRInstruction;
-import parser.nodes.ProgramNode;
 import parser.nodes.Node;
 import java.util.List;
 
@@ -12,7 +11,6 @@ public class TestFix {
                       "\n" +
                       "print(greet(\"World\"))\n";
         
-        // Test just the parsing
         CompilerResult lexResult = lexer.Lexer.tokenize(code);
         if (lexResult.hasErrors()) {
             System.out.println("LEXER ERRORS:");
@@ -27,11 +25,11 @@ public class TestFix {
             return;
         }
         
-        ProgramNode program = (ProgramNode) parseResult.data;
+        Node program = (Node) parseResult.data;
         System.out.println("Parse tree statements:");
-        for (int i = 0; i < program.statements.size(); i++) {
-            Node n = program.statements.get(i);
-            System.out.println("  [" + i + "] " + n.getClass().getSimpleName());
+        for (int i = 0; i < program.children.size(); i++) {
+            Node n = program.children.get(i);
+            System.out.println("  [" + i + "] " + n.kind);
         }
         
         CompilerResult semResult = semantic.SemanticAnalyzer.analyze(parseResult);

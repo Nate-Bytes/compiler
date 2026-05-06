@@ -9,29 +9,9 @@ javac -d out \
   lexer/Token.java \
   lexer/Dictionary.java \
   lexer/Lexer.java \
-  parser/nodes/Node.java \
-  parser/nodes/ProgramNode.java \
-  parser/nodes/AssignNode.java \
-  parser/nodes/BinOpNode.java \
-  parser/nodes/UnaryOpNode.java \
-  parser/nodes/NumberNode.java \
-  parser/nodes/StringNode.java \
-  parser/nodes/BoolNode.java \
-  parser/nodes/NoneNode.java \
-  parser/nodes/NameNode.java \
-  parser/nodes/PrintNode.java \
-  parser/nodes/IfNode.java \
-  parser/nodes/WhileNode.java \
-  parser/nodes/ForNode.java \
-  parser/nodes/FuncDefNode.java \
-  parser/nodes/CallNode.java \
-  parser/nodes/ReturnNode.java \
-  parser/nodes/ImportNode.java \
-  parser/nodes/PassNode.java \
-  parser/nodes/BreakNode.java \
-  parser/nodes/ContinueNode.java \
-  parser/SyntaxRules.java \
   parser/Parser.java \
+  parser/SyntaxRules.java \
+  parser/nodes/Node.java \
   semantic/SemanticAnalyzer.java \
   ir/IRInstruction.java \
   ir/IRGenerator.java \

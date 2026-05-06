@@ -1,19 +1,17 @@
 package semantic;
 
 import core.*;
-import parser.nodes.*;
+import parser.nodes.Node;
 import java.util.*;
 
 // Walks the AST and checks for semantic problems:
 // undefined variables, type mismatches, bad return placement, etc.
 public class SemanticAnalyzer {
 
-    // A scope is a map of variable name → inferred type string
     private final Deque<Map<String,String>> scopes = new ArrayDeque<>();
     private final CompilerResult result;
     private boolean inFunction = false;
 
-    // Python built-ins are always in scope
     private static final Set<String> BUILTINS = new HashSet<>(Arrays.asList(
         "print","input","len","range","type","int","float","str","bool",
         "list","dict","tuple","set","abs","max","min","sum","round",
@@ -28,106 +26,120 @@ public class SemanticAnalyzer {
         out.output = parseResult.output;
         SemanticAnalyzer sa = new SemanticAnalyzer(out);
         sa.pushScope();
-        sa.visitProgram((ProgramNode) parseResult.data);
+        sa.visitProgram((Node) parseResult.data);
         sa.popScope();
         return out;
     }
 
-    private void visitProgram(ProgramNode p) {
-        for (Node s : p.statements) visit(s);
+    private void visitProgram(Node p) {
+        if (p == null || p.children == null) return;
+        for (Node s : p.children) visit(s);
     }
 
     private void visit(Node n) {
         if (n == null) return;
-        if (n instanceof AssignNode)   visitAssign((AssignNode) n);
-        else if (n instanceof PrintNode)   visitPrint((PrintNode) n);
-        else if (n instanceof IfNode)      visitIf((IfNode) n);
-        else if (n instanceof WhileNode)   visitWhile((WhileNode) n);
-        else if (n instanceof ForNode)     visitFor((ForNode) n);
-        else if (n instanceof FuncDefNode) visitFuncDef((FuncDefNode) n);
-        else if (n instanceof ReturnNode)  visitReturn((ReturnNode) n);
-        else if (n instanceof CallNode)    visitCall((CallNode) n);
-        else if (n instanceof ImportNode)  visitImport((ImportNode) n);
-        else if (n instanceof BinOpNode)   inferType((BinOpNode) n);
-        else if (n instanceof NameNode)    checkName((NameNode) n);
-        // Pass/Break/Continue/Number/String/Bool/None are always valid
+        switch (n.kind) {
+            case ASSIGN:   visitAssign(n); break;
+            case PRINT:    visitPrint(n);  break;
+            case IF:       visitIf(n);     break;
+            case WHILE:    visitWhile(n);  break;
+            case FOR:      visitFor(n);    break;
+            case FUNC_DEF: visitFuncDef(n);break;
+            case RETURN:   visitReturn(n); break;
+            case CALL:     visitCall(n);   break;
+            case IMPORT:   visitImport(n); break;
+            case BINOP:    inferType(n);   break;
+            case NAME:     checkName(n);   break;
+            case BLOCK:    for (Node child : n.children) visit(child); break;
+            default: break;
+        }
     }
 
-    private void visitAssign(AssignNode n) {
-        String valType = resolveType(n.value);
-        define(n.target, valType, n);
+    private void visitAssign(Node n) {
+        String valType = resolveType(getChild(n, 0));
+        define(n.name, valType, n);
     }
 
-    private void visitPrint(PrintNode n) {
-        for (Node arg : n.args) {
-            if (arg instanceof NameNode) checkName((NameNode) arg);
+    private void visitPrint(Node n) {
+        for (Node arg : n.children) {
+            if (arg.kind == Node.Kind.NAME) checkName(arg);
             else visit(arg);
         }
     }
 
-    private void visitIf(IfNode n) {
-        visit(n.condition);
-        pushScope(); for (Node s : n.body) visit(s); popScope();
-        if (n.elseBody != null) {
-            pushScope(); for (Node s : n.elseBody) visit(s); popScope();
+    private void visitIf(Node n) {
+        visit(getChild(n, 0));
+        pushScope();
+        Node body = getChild(n, 1);
+        if (body != null) for (Node s : body.children) visit(s);
+        popScope();
+        Node elseBody = getChild(n, 2);
+        if (elseBody != null) {
+            pushScope();
+            for (Node s : elseBody.children) visit(s);
+            popScope();
         }
     }
 
-    private void visitWhile(WhileNode n) {
-        visit(n.condition);
-        pushScope(); for (Node s : n.body) visit(s); popScope();
-    }
-
-    private void visitFor(ForNode n) {
-        visit(n.iterable);
+    private void visitWhile(Node n) {
+        visit(getChild(n, 0));
         pushScope();
-        define(n.var, "any", n);
-        for (Node s : n.body) visit(s);
+        Node body = getChild(n, 1);
+        if (body != null) for (Node s : body.children) visit(s);
         popScope();
     }
 
-    private void visitFuncDef(FuncDefNode n) {
+    private void visitFor(Node n) {
+        visit(getChild(n, 0));
+        pushScope();
+        define(n.name, "any", n);
+        Node body = getChild(n, 1);
+        if (body != null) for (Node s : body.children) visit(s);
+        popScope();
+    }
+
+    private void visitFuncDef(Node n) {
         define(n.name, "function", n);
-        boolean wasInFunc = inFunction; inFunction = true;
+        boolean wasInFunc = inFunction;
+        inFunction = true;
         pushScope();
         for (String p : n.params) define(p, "any", n);
-        for (Node s : n.body) visit(s);
+        Node body = getChild(n, 0);
+        if (body != null) for (Node s : body.children) visit(s);
         popScope();
         inFunction = wasInFunc;
     }
 
-    private void visitReturn(ReturnNode n) {
-        if (!inFunction)
-            error("'return' outside of a function", n);
-        if (n.value != null) visit(n.value);
+    private void visitReturn(Node n) {
+        if (!inFunction) error("'return' outside of a function", n);
+        if (!n.children.isEmpty()) visit(getChild(n, 0));
     }
 
-    private void visitCall(CallNode n) {
+    private void visitCall(Node n) {
         if (!BUILTINS.contains(n.name) && lookup(n.name) == null)
             error("NameError: name '" + n.name + "' is not defined", n);
-        for (Node a : n.args) visit(a);
+        for (Node a : n.children) visit(a);
     }
 
-    private void visitImport(ImportNode n) {
-        define(n.alias.isEmpty() ? n.module : n.alias, "module", n);
+    private void visitImport(Node n) {
+        define(n.alias == null || n.alias.isEmpty() ? n.name : n.alias, "module", n);
     }
 
-    private void checkName(NameNode n) {
+    private void checkName(Node n) {
         if (!BUILTINS.contains(n.name) && lookup(n.name) == null)
             error("NameError: name '" + n.name + "' is not defined", n);
     }
 
-    // Infers type and also checks for mixed string+number operations
-    private String inferType(BinOpNode n) {
-        String lt = resolveType(n.left);
-        String rt = resolveType(n.right);
+    private String inferType(Node n) {
+        String lt = resolveType(getChild(n, 0));
+        String rt = resolveType(getChild(n, 1));
         if (lt != null && rt != null && !lt.equals("any") && !rt.equals("any")) {
             boolean leftStr  = lt.equals("str");
             boolean rightStr = rt.equals("str");
             boolean leftNum  = lt.equals("int") || lt.equals("float");
             boolean rightNum = rt.equals("int") || rt.equals("float");
             if ((leftStr && rightNum) || (leftNum && rightStr)) {
-                if (!n.op.equals("*")) // str*int is valid in Python
+                if (!n.op.equals("*"))
                     error("TypeError: cannot use '" + n.op + "' between " + lt + " and " + rt, n);
             }
         }
@@ -137,22 +149,29 @@ public class SemanticAnalyzer {
         return "any";
     }
 
-    // Resolves the inferred type of any expression node
     private String resolveType(Node n) {
         if (n == null) return "any";
-        if (n instanceof NumberNode) return ((NumberNode)n).isInt ? "int" : "float";
-        if (n instanceof StringNode) return "str";
-        if (n instanceof BoolNode)   return "bool";
-        if (n instanceof NoneNode)   return "none";
-        if (n instanceof NameNode) {
-            String t = lookup(((NameNode)n).name); return t != null ? t : "any";
+        switch (n.kind) {
+            case NUMBER:
+                return (n.value instanceof Long) ? "int" : "float";
+            case STRING:
+                return "str";
+            case BOOL:
+                return "bool";
+            case NONE:
+                return "none";
+            case NAME: {
+                String t = lookup(n.name);
+                return t != null ? t : "any";
+            }
+            case BINOP:
+                return inferType(n);
+            case CALL:
+                return "any";
+            default:
+                return "any";
         }
-        if (n instanceof BinOpNode)  return inferType((BinOpNode) n);
-        if (n instanceof CallNode)   return "any";
-        return "any";
     }
-
-    // ── Scope helpers ─────────────────────────────────────────────────────────
 
     private void pushScope() { scopes.push(new LinkedHashMap<>()); }
     private void popScope()  { if (!scopes.isEmpty()) scopes.pop(); }
@@ -169,5 +188,9 @@ public class SemanticAnalyzer {
 
     private void error(String msg, Node n) {
         result.error(CompilerError.Stage.SEMANTIC, n.line, n.column, msg);
+    }
+
+    private Node getChild(Node n, int index) {
+        return (n == null || n.children == null || index >= n.children.size()) ? null : n.children.get(index);
     }
 }
