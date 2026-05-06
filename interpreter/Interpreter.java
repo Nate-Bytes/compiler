@@ -40,6 +40,15 @@ public class Interpreter {
         return out;
     }
 
+    private String formatPrintOutput(List<Object> values) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < values.size(); i++) {
+            if (i > 0) sb.append(" ");
+            sb.append(pyStr(values.get(i)));
+        }
+        return sb.toString();
+    }
+
     private void execute() {
         // First pass — index all labels and function definitions
         for (int i = 0; i < instructions.size(); i++) {
@@ -96,12 +105,11 @@ public class Interpreter {
                     break;
 
                 case PRINT:
-                    StringBuilder sb = new StringBuilder();
-                    for (int i = 0; i < ins.args.length; i++) {
-                        if (i > 0) sb.append(" ");
-                        sb.append(pyStr(getVar(ins.args[i])));
+                    List<Object> printValues = new ArrayList<>();
+                    for (String arg : ins.args) {
+                        printValues.add(getVar(arg));
                     }
-                    result.output.append(sb).append("\n");
+                    result.output.append(formatPrintOutput(printValues)).append("\n");
                     break;
 
                 case CALL:
@@ -150,12 +158,7 @@ public class Interpreter {
 
         switch (name) {
             case "print": {
-                StringBuilder sb = new StringBuilder();
-                for (int i = 0; i < argVals.size(); i++) {
-                    if (i > 0) sb.append(" ");
-                    sb.append(pyStr(argVals.get(i)));
-                }
-                result.output.append(sb).append("\n");
+                result.output.append(formatPrintOutput(argVals)).append("\n");
                 return null;
             }
             case "int":   return argVals.isEmpty() ? 0L : toLong(argVals.get(0), line);

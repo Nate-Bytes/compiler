@@ -3,12 +3,16 @@ package lexer;
 import java.io.*;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 
 // Loads keyword, operator, and separator lists from txt files next to the class.
 public class Dictionary {
     private static String[] KEYWORDS   = new String[0];
     private static String[] OPERATORS  = new String[0];
     private static String[] SEPARATORS = new String[0];
+    private static Set<String> KEYWORD_SET;
+    private static Set<String> SEPARATOR_SET;
 
     private static final File CLASS_DIR = resolveClassDir();
 
@@ -26,6 +30,10 @@ public class Dictionary {
         KEYWORDS   = load("dict/keywords.txt");
         OPERATORS  = load("dict/operators.txt");
         SEPARATORS = load("dict/separators.txt");
+        KEYWORD_SET = new HashSet<>(java.util.Arrays.asList(KEYWORDS));
+        SEPARATOR_SET = new HashSet<>(java.util.Arrays.asList(SEPARATORS));
+        // Sort operators by length descending for longest-match optimization
+        java.util.Arrays.sort(OPERATORS, (a, b) -> Integer.compare(b.length(), a.length()));
     }
 
     private static String[] load(String path) {
@@ -44,13 +52,11 @@ public class Dictionary {
     }
 
     public static boolean isKeyword(String w) {
-        for (String k : KEYWORDS) if (k.equals(w)) return true;
-        return false;
+        return KEYWORD_SET.contains(w);
     }
 
     public static boolean isSeparator(String s) {
-        for (String sep : SEPARATORS) if (sep.equals(s)) return true;
-        return false;
+        return SEPARATOR_SET.contains(s);
     }
 
     // Returns the longest matching operator at position i, or null.

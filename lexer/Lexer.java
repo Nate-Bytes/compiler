@@ -3,10 +3,24 @@ package lexer;
 import core.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 // Scans source text character by character and produces a token list.
 // Tracks line numbers so every token knows exactly where it came from.
 public class Lexer {
+
+    // Constants for lexer behavior
+    private static final int TAB_WIDTH = 4;
+    private static final char HEX_PREFIX_LOWER = 'x';
+    private static final char HEX_PREFIX_UPPER = 'X';
+    private static final char BINARY_PREFIX_LOWER = 'b';
+    private static final char BINARY_PREFIX_UPPER = 'B';
+    private static final char OCTAL_PREFIX_LOWER = 'o';
+    private static final char OCTAL_PREFIX_UPPER = 'O';
+    private static final char COMPLEX_SUFFIX_LOWER = 'j';
+    private static final char COMPLEX_SUFFIX_UPPER = 'J';
+    private static final int TRIPLE_QUOTE_CHECK_OFFSET = 2;
+    private static final Set<Character> STRING_PREFIXES = Set.of('f', 'F', 'r', 'R', 'b', 'B', 'u', 'U');
 
     public static CompilerResult tokenize(String source) {
         ArrayList<Token> tokens = new ArrayList<>();
@@ -31,7 +45,7 @@ public class Lexer {
 
             if (afterNewline && Character.isWhitespace(c) && c != '\n') {
                 if (c == ' ') currentIndent++;
-                else if (c == '\t') currentIndent += 4; // assume tab = 4 spaces
+                else if (c == '\t') currentIndent += TAB_WIDTH; // assume tab = 4 spaces
                 i++; continue;
             }
 
@@ -64,7 +78,7 @@ public class Lexer {
 
             // String prefix: f"", r"", b""
             int prefixLen = 0;
-            if ((c=='f'||c=='F'||c=='r'||c=='R'||c=='b'||c=='B'||c=='u'||c=='U') && i+1<len) {
+            if (STRING_PREFIXES.contains(c) && i+1<len) {
                 char nx = source.charAt(i + 1);
                 if (nx == '"' || nx == '\'') prefixLen = 1;
             }
@@ -78,11 +92,11 @@ public class Lexer {
                                ? "F-String Literal" : "String Literal";
 
                 // Triple-quoted
-                if (i+2 < len && source.charAt(i+1)==q && source.charAt(i+2)==q) {
+                if (i+TRIPLE_QUOTE_CHECK_OFFSET < len && source.charAt(i+1)==q && source.charAt(i+TRIPLE_QUOTE_CHECK_OFFSET)==q) {
                     i += 3;
                     boolean closed = false;
-                    while (i+2 < len) {
-                        if (source.charAt(i)==q && source.charAt(i+1)==q && source.charAt(i+2)==q) {
+                    while (i+TRIPLE_QUOTE_CHECK_OFFSET < len) {
+                        if (source.charAt(i)==q && source.charAt(i+1)==q && source.charAt(i+TRIPLE_QUOTE_CHECK_OFFSET)==q) {
                             i += 3; closed = true; break;
                         }
                         if (source.charAt(i) == '\n') { line++; lineStart = i+1; }
@@ -109,11 +123,11 @@ public class Lexer {
             // Number
             if (Character.isDigit(c)) {
                 int start = i; boolean isFloat = false;
-                if (c=='0' && i+1<len && (source.charAt(i+1)=='x'||source.charAt(i+1)=='X')) {
+                if (c=='0' && i+1<len && (source.charAt(i+1)==HEX_PREFIX_LOWER||source.charAt(i+1)==HEX_PREFIX_UPPER)) {
                     i += 2; while (i<len && isHex(source.charAt(i))) i++;
-                } else if (c=='0' && i+1<len && (source.charAt(i+1)=='b'||source.charAt(i+1)=='B')) {
+                } else if (c=='0' && i+1<len && (source.charAt(i+1)==BINARY_PREFIX_LOWER||source.charAt(i+1)==BINARY_PREFIX_UPPER)) {
                     i += 2; while (i<len && (source.charAt(i)=='0'||source.charAt(i)=='1')) i++;
-                } else if (c=='0' && i+1<len && (source.charAt(i+1)=='o'||source.charAt(i+1)=='O')) {
+                } else if (c=='0' && i+1<len && (source.charAt(i+1)==OCTAL_PREFIX_LOWER||source.charAt(i+1)==OCTAL_PREFIX_UPPER)) {
                     i += 2; while (i<len && source.charAt(i)>='0' && source.charAt(i)<='7') i++;
                 } else {
                     while (i<len && Character.isDigit(source.charAt(i))) i++;
@@ -124,7 +138,7 @@ public class Lexer {
                         while (i<len && Character.isDigit(source.charAt(i))) i++;
                     }
                 }
-                if (i<len && (source.charAt(i)=='j'||source.charAt(i)=='J')) {
+                if (i<len && (source.charAt(i)==COMPLEX_SUFFIX_LOWER||source.charAt(i)==COMPLEX_SUFFIX_UPPER)) {
                     i++; tokens.add(new Token(source.substring(start,i), "Complex Literal", line, col));
                 } else {
                     tokens.add(new Token(source.substring(start,i), isFloat?"Float Literal":"Integer Literal", line, col));
