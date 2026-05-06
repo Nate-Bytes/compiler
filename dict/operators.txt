@@ -1,0 +1,36 @@
+# Multi-character operators — must stay above single-char ones for longest-match to work
+**
+//
+==
+!=
+<=
+>=
++=
+-=
+*=
+/=
+%=
+**=
+//=
+&=
+|=
+^=
+>>=
+<<=
+->
+:=
+
+# Single-character operators
++
+-
+*
+/
+%
+=
+<
+>
+&
+|
+^
+~
+!

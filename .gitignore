@@ -1,0 +1,31 @@
+# Build output
+out/
+
+# Compiled class files
+*.class
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+*.bak
+
+# Java specific
+*.jar
+*.war
+*.ear
+hs_err_pid*

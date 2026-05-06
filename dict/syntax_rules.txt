@@ -1,0 +1,20 @@
+# Python statement-level grammar rules
+# Format: rule_name : TOKEN TOKEN ...
+# TOKEN types: ID, EXPR, PARAMS, ARGS, :, (, ), =, keyword names
+
+assignment  : ID = EXPR
+aug_assign  : ID AUGOP EXPR
+if_stmt     : if EXPR :
+elif_stmt   : elif EXPR :
+else_stmt   : else :
+while_stmt  : while EXPR :
+for_stmt    : for ID in EXPR :
+def_stmt    : def ID ( PARAMS ) :
+return_stmt : return EXPR
+return_bare : return
+import_stmt : import ID
+from_import : from ID import ID
+print_stmt  : print ( ARGS )
+pass_stmt   : pass
+break_stmt  : break
+continue_stmt : continue
