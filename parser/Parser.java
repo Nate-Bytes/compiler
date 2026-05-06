@@ -55,11 +55,6 @@ public class Parser {
             return parseStatement();
         }
 
-        if (t.type.equals("Keyword")) {
-            SyntaxRules.Rule rule = SyntaxRules.findByKeyword(t.value);
-            if (rule != null) validateRule(rule, t);
-        }
-
         switch (t.value) {
             case "if":       return parseIf();
             case "while":    return parseWhile();
@@ -91,9 +86,6 @@ public class Parser {
         Token nameToken = advance();
         Token op = advance();
         Node value = parseExpression();
-        SyntaxRules.Rule rule = op.value.equals("=")
-            ? SyntaxRules.findByName("assignment")
-            : SyntaxRules.findByName("aug_assign");
         if (value == null) {
             error("Expected value after '" + op.value + "'", op);
             return null;
@@ -107,7 +99,6 @@ public class Parser {
 
     private Node parsePrint() {
         Token t = advance();
-        SyntaxRules.Rule rule = SyntaxRules.findByName("print_stmt");
         expect("(", "Expected '(' after 'print'", t);
         List<Node> args = parseArgList(")");
         expect(")", "Expected ')' to close print()", t);
@@ -452,19 +443,7 @@ public class Parser {
         return stmts;
     }
 
-    private boolean isBlockTerminator(Token t) {
-        if (!t.type.equals("Keyword")) return false;
-        switch (t.value) {
-            case "elif": case "else": case "except": case "finally":
-            case "def":  case "class": return true;
-            default: return false;
-        }
-    }
 
-    private void validateRule(SyntaxRules.Rule rule, Token start) {
-        boolean needsColon = false;
-        for (String tok : rule.tokens) if (tok.equals(":")) { needsColon = true; break; }
-    }
 
     private boolean isAugOp(String value) {
         return value.equals("+=") || value.equals("-=") || value.equals("*=") ||

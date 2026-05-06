@@ -18,16 +18,12 @@ public class CompilerUI extends JFrame {
     private static final Color GUTTER      = new Color(22,  22,  30);
     private static final Color BORDER_COL  = new Color(48,  48,  64);
     private static final Color ACCENT      = new Color(99,  179, 237);
-    private static final Color ACCENT_HOV  = new Color(129, 199, 247);
     private static final Color RUN_GREEN   = new Color(72,  199, 142);
     private static final Color RUN_HOV     = new Color(92,  219, 162);
     private static final Color FG          = new Color(212, 212, 220);
     private static final Color FG_DIM      = new Color(110, 110, 130);
     private static final Color ERR_FG      = new Color(255, 100, 100);
-    private static final Color ERR_BG      = new Color(40,  20,  20);
-    private static final Color WARN_FG     = new Color(255, 200,  80);
     private static final Color OUTPUT_FG   = new Color(180, 255, 180);
-    private static final Color LINE_HL     = new Color(32,  32,  44);
 
     // ── Syntax highlight colors ───────────────────────────────────────────────
     private static final Color SH_KEYWORD  = new Color(197, 134, 192);

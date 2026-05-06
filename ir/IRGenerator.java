@@ -9,11 +9,10 @@ import java.util.*;
 public class IRGenerator {
 
     private final List<IRInstruction> instructions = new ArrayList<>();
-    private final CompilerResult result;
     private int tempCount  = 0;
     private int labelCount = 0;
 
-    public IRGenerator(CompilerResult result) { this.result = result; }
+    public IRGenerator(CompilerResult result) { }
 
     public static CompilerResult generate(CompilerResult semResult) {
         CompilerResult out = new CompilerResult(null);

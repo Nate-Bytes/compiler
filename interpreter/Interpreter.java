@@ -10,10 +10,9 @@ public class Interpreter {
 
     // One stack frame — holds local variables and the return address
     private static class Frame {
-        String funcName;
         Map<String, Object> vars = new LinkedHashMap<>();
         int returnTo; // instruction index to return to
-        Frame(String name, int returnTo) { this.funcName = name; this.returnTo = returnTo; }
+        Frame(String name, int returnTo) { this.returnTo = returnTo; }
     }
 
     private final List<IRInstruction> instructions;
