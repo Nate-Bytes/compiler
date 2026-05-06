@@ -1,4 +1,3 @@
-import core.Pipeline;
 import core.CompilerResult;
 import ir.IRInstruction;
 import parser.nodes.Node;
